@@ -1,17 +1,196 @@
 // Import stylesheets
 import './style.css';
+/* -------------------------------------------------------------------------- */
+/*                                MINI FRAMEWORK.                             */
+/* -------------------------------------------------------------------------- */
 
+// boiler plate setup the canvas for the game
 var canvas = <HTMLCanvasElement>document.getElementById('canvas');
 var ctx = canvas.getContext('2d');
 canvas.setAttribute('tabindex', '1');
 canvas.style.outline = 'none';
 canvas.focus();
 
+// utility functions to use everywhere
+class Util {
+  static getRandomInt(min: number, max: number) {
+    min = Math.ceil(min);
+    max = Math.floor(max);
+    // The maximum is inclusive and the minimum is inclusive
+    return Math.floor(Math.random() * (max - min + 1) + min);
+  }
+}
+
+// Input Controller to use everywhere
+class InputController {
+  public x: number;
+  public y: number;
+
+  constructor() {}
+
+  update(gameObject: GameObject) {}
+}
+
+class GameObject {
+  public x: number;
+  public y: number;
+  public width: number;
+  public height: number;
+  public paddleSpeed: number;
+
+  private inputController: InputController;
+
+  constructor(inputController?) {
+    this.inputController = inputController;
+  }
+
+  update() {
+    this.inputController?.update(this);
+  }
+
+  render() {}
+}
+
+class Physics {
+  private gameObjectCollisionRegister: Array<any> = [];
+  private wallCollisionRegister: Array<any> = [];
+  private objectA: GameObject;
+  private objectB: GameObject;
+
+  constructor() {}
+
+  onCollide(
+    objectA: GameObject,
+    objectB: GameObject,
+    callback: Function,
+    scope: any
+  ) {
+    if (objectA && objectB) {
+      this.gameObjectCollisionRegister.push({
+        objectA: objectA,
+        objectB: objectB,
+        callback: callback,
+        scope: scope,
+      });
+    }
+  }
+
+  onCollideWalls(objectA: GameObject, callback: Function, scope: any) {
+    if (objectA) {
+      this.wallCollisionRegister.push({
+        objectA: objectA,
+        callback: callback,
+        scope: scope,
+      });
+    }
+  }
+
+  update() {
+    for (let collisionEntry of this.gameObjectCollisionRegister) {
+      if (
+        collisionEntry.objectA.x > 0 &&
+        collisionEntry.objectA.x < canvas.width &&
+        collisionEntry.objectA.y > 0 &&
+        collisionEntry.objectA.y < canvas.height &&
+        collisionEntry.objectB.x > 0 &&
+        collisionEntry.objectB.x < canvas.width &&
+        collisionEntry.objectB.y > 0 &&
+        collisionEntry.objectB.y < canvas.height &&
+        collisionEntry.objectA.x >= collisionEntry.objectB.x &&
+        collisionEntry.objectA.x <=
+          collisionEntry.objectB.x + collisionEntry.objectB.width &&
+        collisionEntry.objectA.y >= collisionEntry.objectB.y &&
+        collisionEntry.objectA.y <=
+          collisionEntry.objectB.y + collisionEntry.objectB.height
+      ) {
+        collisionEntry.callback.bind(collisionEntry.scope).apply();
+      }
+    }
+    for (let wallCollisionEntry of this.wallCollisionRegister) {
+      if (
+        wallCollisionEntry.objectA.y < wallCollisionEntry.objectA.height ||
+        wallCollisionEntry.objectA.y > canvas.height ||
+        wallCollisionEntry.objectA.x < wallCollisionEntry.objectA.width ||
+        wallCollisionEntry.objectA.x > canvas.width
+      ) {
+        wallCollisionEntry.callback.bind(wallCollisionEntry.scope).apply();
+      }
+    }
+  }
+}
+
+class Scene {
+  public children: Array<any>;
+  public physics: Physics;
+
+  constructor() {
+    this.children = [];
+    this.physics = new Physics();
+  }
+
+  add(gameObject: GameObject) {
+    this.children.push(gameObject);
+  }
+
+  create() {}
+
+  update() {
+    for (let gameObject of this.children) {
+      gameObject.update();
+    }
+    this.physics.update();
+  }
+
+  render() {
+    // update the game background
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = COLOR_BACKGROUND;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    for (let gameObject of this.children) {
+      gameObject.render();
+    }
+  }
+}
+
+class Game {
+  private scene: Scene;
+  private id: number;
+
+  constructor(scene: Scene) {
+    this.scene = scene;
+    this.scene.create();
+    //Setup Components
+    this.id = requestAnimationFrame(this.gameLoop);
+  }
+
+  gameLoop(timestamp) {
+    // WARNING: This pattern is not using Times Step and as such
+    // Entities must be kept low, when needing multiple entities, scenes,
+    // or other components it's recommended to move to a Game Framework
+
+    // game lifecycle events
+    game.scene.update();
+    game.scene.render();
+
+    // call next frame
+    cancelAnimationFrame(game.id);
+    game.id = requestAnimationFrame(game.gameLoop);
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/*                               GAME SPECIFIC CODE                           */
+/* -------------------------------------------------------------------------- */
+
+/* ------------------------------ GAME MECHANICS ---------------------------- */
+
 const CENTER_LINE_WIDTH = 10;
 const BALL_SIZE = 10;
 const BALL_SPEED = 5;
 const PADDLE_WIDTH = 10;
 const PADDLE_LENGTH = 70;
+const PADDLE_SPEED = 20;
 const HUMAN_PADDLE_VELOCITY = 40;
 const AI_PADDLE_VELOCITY = 10;
 const COLOR_SCORE = '#FFF';
@@ -19,28 +198,31 @@ const COLOR_BACKGROUND = '#000';
 const COLOR_CENTER_LINE = '#FFF';
 const COLOR_PADDLE = '#FFF';
 
-class Ball {
-  public x: number;
-  public y: number;
+/* --------------------------------- ENTITIES ------------------------------- */
+class Ball extends GameObject {
   public xVel: number;
   public yVel: number;
 
   constructor() {
+    super();
     this.x = canvas.height / 2;
     this.y = 300;
     this.xVel = -1;
     this.yVel = 1;
-  }
-
-  display() {
-    ctx.fillStyle = COLOR_PADDLE;
-    ctx.fillRect(this.x, this.y, BALL_SIZE, BALL_SIZE);
+    this.width = BALL_SIZE;
+    this.height = BALL_SIZE;
   }
 
   update() {
+    super.update();
     this.x += this.xVel * BALL_SPEED;
     this.y += this.yVel * BALL_SPEED;
-    this.display();
+  }
+
+  render() {
+    super.render();
+    ctx.fillStyle = COLOR_PADDLE;
+    ctx.fillRect(this.x, this.y, BALL_SIZE, BALL_SIZE);
   }
 
   reset() {
@@ -67,13 +249,13 @@ class Ball {
   }
 }
 
-class Paddle {
-  public x: number;
-  public y: number;
-  public progress: number = 1;
-  public paddleSpeed: number = 20;
-
-  constructor(playerSide: string, paddleSpeed: number) {
+class Paddle extends GameObject {
+  constructor(
+    playerSide: string,
+    paddleSpeed: number,
+    paddleController?: PaddleController
+  ) {
+    super(paddleController);
     if (playerSide == 'LEFT') {
       this.x = PADDLE_WIDTH;
     } else {
@@ -81,17 +263,13 @@ class Paddle {
     }
     this.y = canvas.height / 2 - PADDLE_LENGTH / 2;
     this.paddleSpeed = paddleSpeed;
-    this.display();
   }
 
-  display() {
+  update() {}
+
+  render() {
     ctx.fillStyle = COLOR_PADDLE;
     ctx.fillRect(this.x, this.y, PADDLE_WIDTH, PADDLE_LENGTH);
-  }
-
-  update(progress) {
-    this.progress = progress / 16;
-    this.display();
   }
 
   moveTo(y: number) {
@@ -101,31 +279,38 @@ class Paddle {
   }
 
   moveUp() {
-    let y = this.y - this.progress * this.paddleSpeed;
+    let y = this.y - this.paddleSpeed;
     if (y > 0) {
-      this.y -= this.progress * this.paddleSpeed;
+      this.y -= this.paddleSpeed;
     }
   }
 
   moveDown() {
-    let y = this.y + this.progress * this.paddleSpeed;
+    let y = this.y + this.paddleSpeed;
     if (y + PADDLE_LENGTH < canvas.height) {
-      this.y += this.progress * this.paddleSpeed;
+      this.y += this.paddleSpeed;
     }
   }
 }
 
-class Score {
+class Score extends GameObject {
   private leftScore: number = 0;
   private rightScore: number = 0;
 
   constructor() {
-    this.display();
+    super();
   }
 
-  display() {
+  update() {
+    super.update();
+  }
+
+  render() {
+    super.render();
+
     let leftPosition = canvas.width / 3;
     let rightPosition = canvas.width - canvas.width / 3;
+
     ctx.font = '48px Verdana';
     ctx.fillStyle = COLOR_SCORE;
     ctx.fillText(String(this.leftScore), leftPosition, 50);
@@ -141,19 +326,27 @@ class Score {
   }
 }
 
-class InputController {
-  private paddle: Paddle;
+/* ------------------------------- InputController  ----------------------------- */
 
-  constructor(paddle: Paddle) {
-    this.paddle = paddle;
+class PaddleController extends InputController {
+  constructor() {
+    super();
+  }
 
+  update(gameObject: GameObject) {
     document.addEventListener(
       'keydown',
       (evt) => {
         if (evt.key == 'ArrowUp') {
-          this.paddle.moveUp();
+          let y = gameObject.y - gameObject.paddleSpeed;
+          if (y > 0) {
+            gameObject.y -= gameObject.paddleSpeed;
+          }
         } else if (evt.key == 'ArrowDown') {
-          this.paddle.moveDown();
+          let y = gameObject.y + gameObject.paddleSpeed;
+          if (y + PADDLE_LENGTH < canvas.height) {
+            gameObject.y += gameObject.paddleSpeed;
+          }
         }
         evt.preventDefault();
       },
@@ -165,29 +358,55 @@ class InputController {
       (evt) => {
         let rect = canvas.getBoundingClientRect();
         let y = evt.clientY - rect.top;
-        this.paddle.moveTo(y);
+        if (y > 0 && y + PADDLE_LENGTH < canvas.height) {
+          gameObject.y = y;
+        }
       },
       false
     );
   }
 }
 
-class Game {
-  private score: Score = new Score();
-  private humanPaddle: Paddle = new Paddle('LEFT', HUMAN_PADDLE_VELOCITY);
+/* --------------------------------- SCENE ------------------------------- */
+class MainLevel extends Scene {
+  private score: Score;
+  private humanPaddle: Paddle;
   private aiPaddle: Paddle = new Paddle('RIGHT', AI_PADDLE_VELOCITY);
   private ball: Ball = new Ball();
 
-  private id: number;
-  private lastRenderer: number = 0;
-
   constructor() {
-    //Setup Components
-    let inputController = new InputController(this.humanPaddle);
-    this.id = requestAnimationFrame(this.gameLoop);
+    super();
   }
-  // Setup Game Area
-  setup() {
+
+  create() {
+    this.score = new Score();
+    this.add(this.score);
+
+    this.humanPaddle = new Paddle('LEFT', HUMAN_PADDLE_VELOCITY);
+    this.add(this.humanPaddle);
+
+    this.aiPaddle = new Paddle('RIGHT', AI_PADDLE_VELOCITY);
+    this.add(this.aiPaddle);
+
+    this.ball = new Ball();
+    this.add(this.ball);
+
+    this.physics.onCollide(
+      this.humanPaddle,
+      this.ball,
+      this.onHumanHitBall,
+      this
+    );
+
+    this.physics.onCollide(this.aiPaddle, this.ball, this.onAIHitBall, this);
+    this.physics.onCollideWalls(this.ball, this.onBallHitWall, this);
+  }
+
+  update() {
+    super.update();
+  }
+
+  render() {
     ctx.fillStyle = COLOR_BACKGROUND;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -200,89 +419,50 @@ class Game {
     ctx.lineTo(canvas.width / 2, canvas.height);
     ctx.stroke();
     ctx.closePath();
+
+    super.render();
   }
 
-  gameLoop(timestamp) {
-    var progress = timestamp - game.lastRenderer;
-    game.lastRenderer = timestamp;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    // use game object because of requewstAnimationFrame
-    // calling function with this scope
-    game.setup();
-    game.humanPaddle.update(progress);
-    game.aiPaddle.update(progress);
-    game.ball.update();
-    game.checkCollision();
-    game.checkBehaviors();
-    game.score.display();
-
-    cancelAnimationFrame(game.id);
-    game.id = requestAnimationFrame(game.gameLoop);
+  onHumanHitBall() {
+    this.ball.changeDirection('WEST');
   }
 
-  checkCollision() {
-    this.doBallPaddleCollision(game.humanPaddle, game.ball);
-    this.doBallPaddleCollision(game.aiPaddle, game.ball);
-    this.doBallTopBottomWallCollision(game.ball);
-    this.doBallLeftRightWallCollision(game.ball);
+  onAIHitBall() {
+    this.ball.changeDirection('EAST');
   }
 
-  checkBehaviors() {
-    this.doAIPaddleMove(this.aiPaddle, this.ball);
-  }
-
-  doBallPaddleCollision(paddle: Paddle, ball: Ball) {
+  onBallHitWall() {
     if (
-      paddle.x + PADDLE_WIDTH >= ball.x &&
-      paddle.x <= ball.x &&
-      paddle.y <= ball.y &&
-      paddle.y + PADDLE_LENGTH >= ball.y
+      this.ball.y >= canvas.height - BALL_SIZE &&
+      this.ball.y <= canvas.height
     ) {
-      ball.changeDirection('WEST');
-      ball.update();
+      this.ball.changeDirection('SOUTH');
     }
-    if (
-      paddle.x > canvas.width / 2 &&
-      paddle.x <= ball.x + BALL_SIZE &&
-      paddle.x + PADDLE_LENGTH >= ball.x &&
-      paddle.y <= ball.y &&
-      paddle.y + PADDLE_LENGTH >= ball.y
-    ) {
-      ball.changeDirection('EAST');
-      ball.update();
+    if (this.ball.y <= BALL_SIZE && this.ball.y >= 0) {
+      this.ball.changeDirection('NORTH');
     }
-  }
-
-  doBallTopBottomWallCollision(ball: Ball) {
-    if (ball.y >= canvas.height - BALL_SIZE && ball.y <= canvas.height) {
-      ball.changeDirection('SOUTH');
-      ball.update();
-    }
-    if (ball.y <= BALL_SIZE && ball.y >= 0) {
-      ball.changeDirection('NORTH');
-      ball.update();
+    if (this.ball.x >= canvas.width) {
+      this.score.incrementLeft();
+      this.ball.reset();
+    } else if (this.ball.x <= BALL_SIZE) {
+      this.score.incrementRight();
+      this.ball.reset();
     }
   }
 
-  doBallLeftRightWallCollision(ball: Ball) {
-    if (ball.x >= canvas.width) {
-      game.score.incrementLeft();
-      ball.reset();
-    } else if (ball.x <= BALL_SIZE) {
-      game.score.incrementRight();
-      ball.reset();
-    }
-  }
-
-  doAIPaddleMove(paddle: Paddle, ball: Ball) {
-    if (ball.x > canvas.width / 2) {
-      if (paddle.y >= ball.y) {
-        paddle.moveUp();
-      } else if (paddle.y + PADDLE_LENGTH < ball.y) {
-        paddle.moveDown();
+  doAIPaddleMove() {
+    if (this.ball.x > canvas.width / 2) {
+      if (this.aiPaddle.y >= this.ball.y) {
+        this.aiPaddle.moveUp();
+      } else if (this.aiPaddle.y + PADDLE_LENGTH < this.ball.y) {
+        this.aiPaddle.moveDown();
       }
     }
   }
 }
 
-let game = new Game();
+/* -------------------------------------------------------------------------- */
+/*                                RUN GAME.                                   */
+/* -------------------------------------------------------------------------- */
+let mainLevel = new MainLevel();
+let game = new Game(mainLevel);
