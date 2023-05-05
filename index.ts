@@ -108,9 +108,9 @@ class Physics {
     }
     for (let wallCollisionEntry of this.wallCollisionRegister) {
       if (
-        wallCollisionEntry.objectA.y < 0 ||
+        wallCollisionEntry.objectA.y <= wallCollisionEntry.objectA.height ||
         wallCollisionEntry.objectA.y >= canvas.height ||
-        wallCollisionEntry.objectA.x < 0 ||
+        wallCollisionEntry.objectA.x <= wallCollisionEntry.objectA.width ||
         wallCollisionEntry.objectA.x >= canvas.width
       ) {
         wallCollisionEntry.callback.bind(wallCollisionEntry.scope).apply();
@@ -190,9 +190,8 @@ const BALL_SIZE = 10;
 const BALL_SPEED = 5;
 const PADDLE_WIDTH = 10;
 const PADDLE_LENGTH = 70;
-const PADDLE_SPEED = 20;
 const HUMAN_PADDLE_VELOCITY = 40;
-const AI_PADDLE_VELOCITY = 10;
+const AI_PADDLE_VELOCITY = 15;
 const COLOR_SCORE = '#FFF';
 const COLOR_BACKGROUND = '#000';
 const COLOR_CENTER_LINE = '#FFF';
@@ -404,17 +403,19 @@ class MainLevel extends Scene {
     this.add(this.ball);
 
     this.physics.onCollide(
-      this.humanPaddle,
       this.ball,
+      this.humanPaddle,
       this.onHumanHitBall,
       this
     );
-    this.physics.onCollide(this.aiPaddle, this.ball, this.onAIHitBall, this);
+    this.physics.onCollide(this.ball, this.aiPaddle, this.onAIHitBall, this);
     this.physics.onCollideWalls(this.ball, this.onBallHitWall, this);
   }
 
   update() {
     super.update();
+
+    this.doAIPaddleMove();
   }
 
   render() {
@@ -432,12 +433,10 @@ class MainLevel extends Scene {
   }
 
   onHumanHitBall() {
-    console.log('onHumanHitBall');
     this.ball.changeDirection('EAST');
   }
 
   onAIHitBall() {
-    console.log('onHumanHitBall');
     this.ball.changeDirection('WEST');
   }
 
@@ -462,9 +461,12 @@ class MainLevel extends Scene {
 
   doAIPaddleMove() {
     if (this.ball.x > canvas.width / 2) {
-      if (this.aiPaddle.y >= this.ball.y) {
+      if (this.aiPaddle.y + this.ball.width >= this.ball.y) {
         this.aiPaddle.moveUp();
-      } else if (this.aiPaddle.y + PADDLE_LENGTH < this.ball.y) {
+      } else if (
+        this.aiPaddle.y + PADDLE_LENGTH - this.ball.width <
+        this.ball.y
+      ) {
         this.aiPaddle.moveDown();
       }
     }
