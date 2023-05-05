@@ -108,10 +108,10 @@ class Physics {
     }
     for (let wallCollisionEntry of this.wallCollisionRegister) {
       if (
-        wallCollisionEntry.objectA.y < wallCollisionEntry.objectA.height ||
-        wallCollisionEntry.objectA.y > canvas.height ||
-        wallCollisionEntry.objectA.x < wallCollisionEntry.objectA.width ||
-        wallCollisionEntry.objectA.x > canvas.width
+        wallCollisionEntry.objectA.y < 0 ||
+        wallCollisionEntry.objectA.y >= canvas.height ||
+        wallCollisionEntry.objectA.x < 0 ||
+        wallCollisionEntry.objectA.x >= canvas.width
       ) {
         wallCollisionEntry.callback.bind(wallCollisionEntry.scope).apply();
       }
@@ -206,7 +206,7 @@ class Ball extends GameObject {
   constructor() {
     super();
     this.x = canvas.height / 2;
-    this.y = 300;
+    this.y = 100;
     this.xVel = -1;
     this.yVel = 1;
     this.width = BALL_SIZE;
@@ -229,7 +229,7 @@ class Ball extends GameObject {
     this.xVel = -1;
     this.yVel = 1;
     this.x = canvas.height / 2;
-    this.y = 300;
+    this.y = 100;
   }
 
   changeDirection(compassDirection) {
@@ -263,11 +263,17 @@ class Paddle extends GameObject {
     }
     this.y = canvas.height / 2 - PADDLE_LENGTH / 2;
     this.paddleSpeed = paddleSpeed;
+    this.width = PADDLE_WIDTH;
+    this.height = PADDLE_LENGTH;
   }
 
-  update() {}
+  update() {
+    super.update();
+  }
 
   render() {
+    super.render();
+
     ctx.fillStyle = COLOR_PADDLE;
     ctx.fillRect(this.x, this.y, PADDLE_WIDTH, PADDLE_LENGTH);
   }
@@ -331,16 +337,14 @@ class Score extends GameObject {
 class PaddleController extends InputController {
   constructor() {
     super();
-  }
 
-  update(gameObject: GameObject) {
-    document.addEventListener(
+    /*document.addEventListener(
       'keydown',
       (evt) => {
         if (evt.key == 'ArrowUp') {
-          let y = gameObject.y - gameObject.paddleSpeed;
+          let y = this.y + gameObject.paddleSpeed;
           if (y > 0) {
-            gameObject.y -= gameObject.paddleSpeed;
+            this.y -= gameObject.paddleSpeed;
           }
         } else if (evt.key == 'ArrowDown') {
           let y = gameObject.y + gameObject.paddleSpeed;
@@ -351,7 +355,7 @@ class PaddleController extends InputController {
         evt.preventDefault();
       },
       false
-    );
+    );*/
 
     document.addEventListener(
       'mousemove',
@@ -359,11 +363,15 @@ class PaddleController extends InputController {
         let rect = canvas.getBoundingClientRect();
         let y = evt.clientY - rect.top;
         if (y > 0 && y + PADDLE_LENGTH < canvas.height) {
-          gameObject.y = y;
+          this.y = y;
         }
       },
       false
     );
+  }
+
+  update(gameObject: GameObject) {
+    gameObject.y = this.y;
   }
 }
 
@@ -371,7 +379,7 @@ class PaddleController extends InputController {
 class MainLevel extends Scene {
   private score: Score;
   private humanPaddle: Paddle;
-  private aiPaddle: Paddle = new Paddle('RIGHT', AI_PADDLE_VELOCITY);
+  private aiPaddle: Paddle;
   private ball: Ball = new Ball();
 
   constructor() {
@@ -382,7 +390,11 @@ class MainLevel extends Scene {
     this.score = new Score();
     this.add(this.score);
 
-    this.humanPaddle = new Paddle('LEFT', HUMAN_PADDLE_VELOCITY);
+    this.humanPaddle = new Paddle(
+      'LEFT',
+      HUMAN_PADDLE_VELOCITY,
+      new PaddleController()
+    );
     this.add(this.humanPaddle);
 
     this.aiPaddle = new Paddle('RIGHT', AI_PADDLE_VELOCITY);
@@ -397,7 +409,6 @@ class MainLevel extends Scene {
       this.onHumanHitBall,
       this
     );
-
     this.physics.onCollide(this.aiPaddle, this.ball, this.onAIHitBall, this);
     this.physics.onCollideWalls(this.ball, this.onBallHitWall, this);
   }
@@ -407,8 +418,7 @@ class MainLevel extends Scene {
   }
 
   render() {
-    ctx.fillStyle = COLOR_BACKGROUND;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    super.render();
 
     //dividing line
     ctx.beginPath();
@@ -419,16 +429,16 @@ class MainLevel extends Scene {
     ctx.lineTo(canvas.width / 2, canvas.height);
     ctx.stroke();
     ctx.closePath();
-
-    super.render();
   }
 
   onHumanHitBall() {
-    this.ball.changeDirection('WEST');
+    console.log('onHumanHitBall');
+    this.ball.changeDirection('EAST');
   }
 
   onAIHitBall() {
-    this.ball.changeDirection('EAST');
+    console.log('onHumanHitBall');
+    this.ball.changeDirection('WEST');
   }
 
   onBallHitWall() {
@@ -466,3 +476,9 @@ class MainLevel extends Scene {
 /* -------------------------------------------------------------------------- */
 let mainLevel = new MainLevel();
 let game = new Game(mainLevel);
+
+// TODO:
+// - allow ai to move paddle (behavior)
+// - fix paddle and ball collision for human
+// - fix arrow up and down
+//
